@@ -114,31 +114,33 @@ jobs:
           subject: "${{ job.status == 'success' && '✅' || '❌' }} Marcación DLW — ${{ steps.horario.outputs.label }} — ${{ steps.timestamp.outputs.hora }}"
           content_type: text/html
           body: |
-            <html><body style="font-family:sans-serif;color:#333;max-width:520px;margin:auto">
+            <!DOCTYPE html>
+            <html lang="es">
+            <head><meta charset="UTF-8"></head>
+            <body style="font-family:Arial,sans-serif;color:#333;max-width:520px;margin:auto;padding:16px">
 
-              <div style="background:${{ job.status == 'success' && '#e8f5e9' || '#ffebee' }};border-left:5px solid ${{ job.status == 'success' && '#2e7d32' || '#c62828' }};padding:16px 20px;border-radius:4px;margin-bottom:20px">
-                <p style="margin:0;font-size:20px;font-weight:bold;color:${{ job.status == 'success' && '#2e7d32' || '#c62828' }}">
-                  ${{ job.status == 'success' && '✅ Marcación registrada correctamente' || '❌ Error al registrar la marcación' }}
-                </p>
-              </div>
+              <p style="font-size:22px;font-weight:bold;color:${{ job.status == 'success' && '#2e7d32' || '#c62828' }};margin-bottom:20px">
+                ${{ job.status == 'success' && '&#x2705; Marcaci&oacute;n registrada correctamente' || '&#x274C; Error al registrar la marcaci&oacute;n' }}
+              </p>
 
-              <table style="border-collapse:collapse;width:100%">
-                <tr>
-                  <td style="padding:10px 14px;background:#f5f5f5;font-weight:bold;width:40%">Hora de registro</td>
+              <table style="border-collapse:collapse;width:100%;max-width:500px">
+                <tr style="background:#f5f5f5">
+                  <td style="padding:10px 14px;font-weight:bold;width:45%">Hora de registro</td>
                   <td style="padding:10px 14px;font-size:16px;font-weight:bold">${{ steps.timestamp.outputs.hora }} (Lima)</td>
                 </tr>
                 <tr>
-                  <td style="padding:10px 14px;background:#f5f5f5;font-weight:bold">Marcación</td>
+                  <td style="padding:10px 14px;font-weight:bold">Marcaci&oacute;n</td>
                   <td style="padding:10px 14px">${{ steps.horario.outputs.label }}</td>
                 </tr>
-                <tr>
-                  <td style="padding:10px 14px;background:#f5f5f5;font-weight:bold">Respuesta del sistema</td>
-                  <td style="padding:10px 14px;font-family:monospace;white-space:pre-wrap">${{ steps.registro.outputs.salida }}</td>
+                <tr style="background:#f5f5f5">
+                  <td style="padding:10px 14px;font-weight:bold">Respuesta del sistema</td>
+                  <td style="padding:10px 14px;font-family:monospace">${{ steps.registro.outputs.salida }}</td>
                 </tr>
               </table>
 
               <p style="color:#aaa;font-size:11px;margin-top:24px;text-align:center">
-                <a href="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" style="color:#aaa">Ver log completo en GitHub Actions</a>
+                <a href="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" style="color:#aaa">Ver log en GitHub Actions</a>
               </p>
 
-            </body></html>
+            </body>
+            </html>
