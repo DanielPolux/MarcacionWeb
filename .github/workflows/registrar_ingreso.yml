@@ -112,35 +112,14 @@ jobs:
           to: daniel.cabanillas@dlwlatam.com
           from: "Marcación DLW <${{ secrets.GMAIL_USER }}>"
           subject: "${{ job.status == 'success' && '✅' || '❌' }} Marcación DLW — ${{ steps.horario.outputs.label }} — ${{ steps.timestamp.outputs.hora }}"
-          content_type: text/html
           body: |
-            <!DOCTYPE html>
-            <html lang="es">
-            <head><meta charset="UTF-8"></head>
-            <body style="font-family:Arial,sans-serif;color:#333;max-width:520px;margin:auto;padding:16px">
+            ${{ job.status == 'success' && '✅ Marcacion registrada correctamente' || '❌ Error al registrar la marcacion' }}
 
-              <p style="font-size:22px;font-weight:bold;color:${{ job.status == 'success' && '#2e7d32' || '#c62828' }};margin-bottom:20px">
-                ${{ job.status == 'success' && '&#x2705; Marcaci&oacute;n registrada correctamente' || '&#x274C; Error al registrar la marcaci&oacute;n' }}
-              </p>
+            Hora de registro : ${{ steps.timestamp.outputs.hora }} (Lima)
+            Marcacion        : ${{ steps.horario.outputs.label }}
+            Estado           : ${{ job.status }}
 
-              <table style="border-collapse:collapse;width:100%;max-width:500px">
-                <tr style="background:#f5f5f5">
-                  <td style="padding:10px 14px;font-weight:bold;width:45%">Hora de registro</td>
-                  <td style="padding:10px 14px;font-size:16px;font-weight:bold">${{ steps.timestamp.outputs.hora }} (Lima)</td>
-                </tr>
-                <tr>
-                  <td style="padding:10px 14px;font-weight:bold">Marcaci&oacute;n</td>
-                  <td style="padding:10px 14px">${{ steps.horario.outputs.label }}</td>
-                </tr>
-                <tr style="background:#f5f5f5">
-                  <td style="padding:10px 14px;font-weight:bold">Respuesta del sistema</td>
-                  <td style="padding:10px 14px;font-family:monospace">${{ steps.registro.outputs.salida }}</td>
-                </tr>
-              </table>
+            Respuesta del sistema:
+            ${{ steps.registro.outputs.salida }}
 
-              <p style="color:#aaa;font-size:11px;margin-top:24px;text-align:center">
-                <a href="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" style="color:#aaa">Ver log en GitHub Actions</a>
-              </p>
-
-            </body>
-            </html>
+            Ver log: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
