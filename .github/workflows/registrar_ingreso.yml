@@ -1,0 +1,121 @@
+name: Registrar Ingreso DLW
+
+on:
+  schedule:
+    # Horarios en UTC (Perú = UTC-5)
+    # 08:00 Lima → 13:00 UTC → 5 min antes para ventana ±5 min (sin restricción)
+    - cron: '55 12 * * *'
+    # 13:00 Lima → 18:00 UTC → cron EXACTO: no puede ejecutarse antes de la 1pm
+    - cron: '0 18 * * *'
+    # 14:00 Lima → 19:00 UTC → 5 min antes: no puede reingresar después de las 2pm
+    - cron: '55 18 * * *'
+    # 20:00 Lima → 01:00 UTC → 5 min antes para ventana ±5 min (sin restricción)
+    - cron: '55 0 * * *'
+
+  # Permite ejecutar manualmente desde la UI de GitHub
+  workflow_dispatch:
+
+jobs:
+  registrar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Retraso aleatorio según restricciones horarias
+        run: |
+          SCHEDULE="${{ github.event.schedule }}"
+          if [ "$SCHEDULE" = "0 18 * * *" ] || [ "$SCHEDULE" = "55 18 * * *" ]; then
+            sleep $((RANDOM % 301))
+          else
+            sleep $((RANDOM % 601))
+          fi
+
+      - name: Determinar etiqueta del horario
+        id: horario
+        run: |
+          case "${{ github.event.schedule }}" in
+            "55 12 * * *") echo "label=08:00 — Ingreso mañana"      >> $GITHUB_OUTPUT ;;
+            "0 18 * * *")  echo "label=13:00 — Salida almuerzo"     >> $GITHUB_OUTPUT ;;
+            "55 18 * * *") echo "label=14:00 — Reingreso almuerzo"  >> $GITHUB_OUTPUT ;;
+            "55 0 * * *")  echo "label=20:00 — Salida tarde"        >> $GITHUB_OUTPUT ;;
+            *)             echo "label=Manual"                       >> $GITHUB_OUTPUT ;;
+          esac
+
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias Node
+        run: npm ci
+
+      - name: Instalar Chromium (Playwright)
+        run: npx playwright install chromium --with-deps
+
+      - name: Capturar hora de registro (Lima, UTC-5)
+        id: timestamp
+        run: |
+          HORA=$(TZ='America/Lima' date '+%d/%m/%Y %H:%M:%S')
+          echo "hora=$HORA" >> $GITHUB_OUTPUT
+
+      - name: Registrar ingreso
+        id: registro
+        env:
+          DNI: ${{ secrets.DNI }}
+        run: |
+          OUTPUT=$(node registrar_ingreso.js 2>&1)
+          EXIT_CODE=$?
+          echo "$OUTPUT"
+          {
+            echo "salida<<EOF"
+            echo "$OUTPUT"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+          exit $EXIT_CODE
+
+      - name: Enviar correo de notificación
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          to: daniel.cabanillas@dlwlatam.com
+          from: "Marcación DLW <${{ secrets.GMAIL_USER }}>"
+          subject: "${{ job.status == 'success' && '✅' || '❌' }} Marcación DLW — ${{ steps.horario.outputs.label }} — ${{ steps.timestamp.outputs.hora }}"
+          content_type: text/html
+          body: |
+            <html><body style="font-family:sans-serif;color:#333;max-width:520px;margin:auto">
+
+              <div style="background:${{ job.status == 'success' && '#e8f5e9' || '#ffebee' }};border-left:5px solid ${{ job.status == 'success' && '#2e7d32' || '#c62828' }};padding:16px 20px;border-radius:4px;margin-bottom:20px">
+                <p style="margin:0;font-size:20px;font-weight:bold;color:${{ job.status == 'success' && '#2e7d32' || '#c62828' }}">
+                  ${{ job.status == 'success' && '✅ Marcación registrada correctamente' || '❌ Error al registrar la marcación' }}
+                </p>
+              </div>
+
+              <table style="border-collapse:collapse;width:100%">
+                <tr>
+                  <td style="padding:10px 14px;background:#f5f5f5;font-weight:bold;width:40%">Hora de registro</td>
+                  <td style="padding:10px 14px;font-size:16px;font-weight:bold">${{ steps.timestamp.outputs.hora }} (Lima)</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 14px;background:#f5f5f5;font-weight:bold">Marcación</td>
+                  <td style="padding:10px 14px">${{ steps.horario.outputs.label }}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 14px;background:#f5f5f5;font-weight:bold">Respuesta del sistema</td>
+                  <td style="padding:10px 14px;font-family:monospace;white-space:pre-wrap">${{ steps.registro.outputs.salida }}</td>
+                </tr>
+              </table>
+
+              <p style="color:#aaa;font-size:11px;margin-top:24px;text-align:center">
+                <a href="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" style="color:#aaa">Ver log completo en GitHub Actions</a>
+              </p>
+
+            </body></html>

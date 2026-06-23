@@ -1,0 +1,13 @@
+{
+  "name": "ingreso-dlw-automation",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Automatizacion de registro de ingreso DLW.",
+  "main": "registrar_ingreso.js",
+  "scripts": {
+    "run": "node registrar_ingreso.js"
+  },
+  "dependencies": {
+    "playwright": "^1.52.0"
+  }
+}
