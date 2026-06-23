@@ -2,15 +2,15 @@ name: Registrar Ingreso DLW
 
 on:
   schedule:
-    # Horarios en UTC (Perú = UTC-5)
+    # Horarios en UTC (Perú = UTC-5) — solo lunes a viernes (1-5)
     # 08:00 Lima → 13:00 UTC → 5 min antes para ventana ±5 min (sin restricción)
-    - cron: '55 12 * * *'
+    - cron: '55 12 * * 1-5'
     # 13:00 Lima → 18:00 UTC → cron EXACTO: no puede ejecutarse antes de la 1pm
-    - cron: '0 18 * * *'
+    - cron: '0 18 * * 1-5'
     # 14:00 Lima → 19:00 UTC → 5 min antes: no puede reingresar después de las 2pm
-    - cron: '55 18 * * *'
+    - cron: '55 18 * * 1-5'
     # 20:00 Lima → 01:00 UTC → 5 min antes para ventana ±5 min (sin restricción)
-    - cron: '55 0 * * *'
+    - cron: '55 0 * * 1-5'
 
   # Permite ejecutar manualmente desde la UI de GitHub
   workflow_dispatch:
@@ -24,46 +24,69 @@ jobs:
       - name: Retraso aleatorio según restricciones horarias
         run: |
           SCHEDULE="${{ github.event.schedule }}"
-          if [ "$SCHEDULE" = "0 18 * * *" ] || [ "$SCHEDULE" = "55 18 * * *" ]; then
+          if [ "$SCHEDULE" = "0 18 * * 1-5" ] || [ "$SCHEDULE" = "55 18 * * 1-5" ]; then
             sleep $((RANDOM % 301))
           else
             sleep $((RANDOM % 601))
           fi
 
+      - name: Verificar feriado en Perú
+        id: feriado
+        run: |
+          TODAY=$(TZ='America/Lima' date '+%Y-%m-%d')
+          YEAR=$(TZ='America/Lima' date '+%Y')
+          NOMBRE=$(curl -sf "https://date.nager.at/api/v3/PublicHolidays/${YEAR}/PE" \
+            | jq -r ".[] | select(.date == \"${TODAY}\") | .localName" 2>/dev/null | head -1)
+          if [ -n "$NOMBRE" ]; then
+            echo "es_feriado=true"  >> $GITHUB_OUTPUT
+            echo "nombre=$NOMBRE"   >> $GITHUB_OUTPUT
+            echo "⛔ Hoy es feriado: $NOMBRE — se omite la marcación."
+          else
+            echo "es_feriado=false" >> $GITHUB_OUTPUT
+            echo "nombre="          >> $GITHUB_OUTPUT
+          fi
+
       - name: Determinar etiqueta del horario
         id: horario
+        if: steps.feriado.outputs.es_feriado == 'false'
         run: |
           case "${{ github.event.schedule }}" in
-            "55 12 * * *") echo "label=08:00 — Ingreso mañana"      >> $GITHUB_OUTPUT ;;
-            "0 18 * * *")  echo "label=13:00 — Salida almuerzo"     >> $GITHUB_OUTPUT ;;
-            "55 18 * * *") echo "label=14:00 — Reingreso almuerzo"  >> $GITHUB_OUTPUT ;;
-            "55 0 * * *")  echo "label=20:00 — Salida tarde"        >> $GITHUB_OUTPUT ;;
-            *)             echo "label=Manual"                       >> $GITHUB_OUTPUT ;;
+            "55 12 * * 1-5") echo "label=08:00 — Ingreso mañana"      >> $GITHUB_OUTPUT ;;
+            "0 18 * * 1-5")  echo "label=13:00 — Salida almuerzo"     >> $GITHUB_OUTPUT ;;
+            "55 18 * * 1-5") echo "label=14:00 — Reingreso almuerzo"  >> $GITHUB_OUTPUT ;;
+            "55 0 * * 1-5")  echo "label=20:00 — Salida tarde"        >> $GITHUB_OUTPUT ;;
+            *)               echo "label=Manual"                       >> $GITHUB_OUTPUT ;;
           esac
 
       - name: Checkout del repositorio
+        if: steps.feriado.outputs.es_feriado == 'false'
         uses: actions/checkout@v4
 
       - name: Configurar Node.js 20
+        if: steps.feriado.outputs.es_feriado == 'false'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
       - name: Instalar dependencias Node
+        if: steps.feriado.outputs.es_feriado == 'false'
         run: npm ci
 
       - name: Instalar Chromium (Playwright)
+        if: steps.feriado.outputs.es_feriado == 'false'
         run: npx playwright install chromium --with-deps
 
       - name: Capturar hora de registro (Lima, UTC-5)
         id: timestamp
+        if: steps.feriado.outputs.es_feriado == 'false'
         run: |
           HORA=$(TZ='America/Lima' date '+%d/%m/%Y %H:%M:%S')
           echo "hora=$HORA" >> $GITHUB_OUTPUT
 
       - name: Registrar ingreso
         id: registro
+        if: steps.feriado.outputs.es_feriado == 'false'
         env:
           DNI: ${{ secrets.DNI }}
         run: |
@@ -78,7 +101,7 @@ jobs:
           exit $EXIT_CODE
 
       - name: Enviar correo de notificación
-        if: always()
+        if: steps.feriado.outputs.es_feriado == 'false' && always()
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
